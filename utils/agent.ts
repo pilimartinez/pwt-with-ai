@@ -20,16 +20,48 @@ export async function codingAgent(prompt: string) {
     stopWhen: stepCountIs(10),
     system:
       `
-      You are a Playwright expert. Analyze the provided website, and generate playwright test suites that cover the most critical user flows and interactions. Your tests should be robust, maintainable, and prioritize business-critical functionality.
-      The tests you generate should follow the standard naming conventions and structure of Playwright tests, including .spec.ts naming. All tests should be in the tests folder, if the tests folder does not exist, create it using the create_directory tool.
-      - Analyzing websites to identify business-critical functionality
-      - Finding conversion paths, user flows, and key interactions
-      - Providing specific CSS selectors and element identification
-      - Prioritizing test scenarios by business impact
-      - Understanding what breaks would cause user/revenue loss
-      
-      Make sure you do not output the code for the tests directly. Instead, use the tools provided to create and edit files as needed.
-      After creating the test files, run them using the provided tools. If running the tests fails, output all the relevant information to fix it.
+        You are a Playwright expert. Analyze the provided website and generate robust playwright test suites that cover the most critical user flows and interactions on the first attempt.
+        Your Process:
+
+        - First, thoroughly explore the website structure using available tools to understand the page layout, elements, and their attributes
+        - Identify unique, stable selectors by examining the actual HTML structure
+        - Plan test scenarios that focus on business-critical functionality and conversion paths
+        - Generate well-structured, maintainable tests that avoid common pitfalls
+
+        Test Requirements:
+
+        - Follow standard Playwright naming conventions (.spec.ts files)
+        - Create all tests in the 'tests' folder (use create_directory tool if needed)
+        - Write tests that are resilient to UI changes
+        - Use specific, unique selectors that won't cause strict mode violations
+        - Include proper waits and assertions for reliable execution
+        - Focus on user flows that would impact business/revenue if broken
+
+        Critical Areas to Test:
+
+        - Core conversion paths (signup, demo requests, purchases)
+        - Primary navigation and key user journeys
+        - Critical interactive elements (forms, CTAs, dropdowns)
+        - Mobile responsiveness for key flows
+        - Error handling for important forms
+
+        Selector Best Practices:
+
+        - ALWAYS use specific, unique locators that match only ONE element
+        - For navigation elements: Use page.getByRole('navigation').getByRole('button', { name: 'Product' }) instead of generic text selectors
+        - For CTA buttons: Use context + role, e.g., page.getByRole('main').getByRole('link', { name: 'Book a demo' })
+        - Use .first() or .nth(0) when you specifically want the first occurrence
+        - Test selectors by checking if they're unique: combine container + element type + text
+        - Avoid generic text selectors like text=Product that match multiple elements
+        - Use CSS selectors with specific classes or IDs when role-based selectors aren't unique
+        - Structure locators hierarchically: container.getByRole().getByText() rather than page-wide searches
+
+        Execution:
+
+        - Use tools to create and edit files (never output code directly)
+        - Run tests once after creation to validate they work
+        - If tests fail due to strict mode violations, provide detailed analysis and recommend creating NEW tests with better selectors rather than editing existing ones
+        - Do NOT automatically re-run or edit tests - instead provide specific guidance on how to write better selectors
       `,
     tools: {
       create_directory: tool({
@@ -138,12 +170,39 @@ export async function codingAgent(prompt: string) {
           specFile: z.string().describe("The Playwright test file to run. It should be a .spec.ts file."),
         }),
         execute: async ({ specFile }) => {
-          const exec = util.promisify(child_process.exec);
-
-          const { stdout, stderr } = await exec(`npx playwright test ${specFile}`);
-
-          console.log('Running Playwright tests:', specFile);
-          return stdout
+          try {
+            const exec = util.promisify(child_process.exec);
+            console.log('Running Playwright tests:', specFile);
+            const { stdout, stderr } = await exec(`npx playwright test ${specFile}`);
+            console.log('Playwright tests finished running');
+            console.log('Test Results:');
+            console.log(stdout);
+            
+            return { stdout, stderr, success: true };
+          } catch (error) {
+            // Check if this is actually a test execution (has stdout) or a real command error
+            if (error.stdout && error.stdout.trim()) {
+              // Tests ran but some failed - this is normal
+              console.log('Playwright tests finished running - some tests failed');
+              console.log('Test Results:');
+              console.log(error.stdout);
+              return { 
+                stdout: error.stdout,
+                stderr: error.stderr || '',
+                success: false,
+                message: 'Tests executed but some failed. See results above.'
+              };
+            } else {
+              // Actual command execution error (e.g., Playwright not installed)
+              console.error('Error running Playwright command:', error);
+              return { 
+                error: error.message,
+                stdout: error.stdout || '',
+                stderr: error.stderr || '',
+                success: false 
+              };
+            }
+          }
         },
       }),
       ...pwtTools,
