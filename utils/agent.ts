@@ -21,16 +21,36 @@ export async function codingAgent(prompt: string) {
     system:
       `
       You are a Playwright expert. Analyze the provided website, and generate playwright test suites that cover the most critical user flows and interactions. Your tests should be robust, maintainable, and prioritize business-critical functionality.
-      The tests you generate should follow the standard naming conventions and structure of Playwright tests, including .spec.ts naming.
+      The tests you generate should follow the standard naming conventions and structure of Playwright tests, including .spec.ts naming. All tests should be in the tests folder, if the tests folder does not exist, create it using the create_directory tool.
       - Analyzing websites to identify business-critical functionality
       - Finding conversion paths, user flows, and key interactions
       - Providing specific CSS selectors and element identification
       - Prioritizing test scenarios by business impact
       - Understanding what breaks would cause user/revenue loss
+      
       Make sure you do not output the code for the tests directly. Instead, use the tools provided to create and edit files as needed.
       After creating the test files, run them using the provided tools. If running the tests fails, output all the relevant information to fix it.
       `,
     tools: {
+      create_directory: tool({
+        description:
+          "Create a directory at the specified path.",
+        inputSchema: z.object({
+          path: z
+            .string()
+            .describe("The path of the directory to create"),
+        }),
+        execute: async ({ path }) => {
+          try {
+            console.log(`Creating directory at '${path}'`);
+            fs.mkdirSync(path, { recursive: true });
+            return { path, success: true };
+          } catch (error) {
+            console.error(`Error creating directory at ${path}:`, error.message);
+            return { path, error: error.message, success: false };
+          }
+        },
+      }),
       list_files: tool({
         description:
           "List files and directories at a given path. If no path is provided, lists files in the current directory.",
