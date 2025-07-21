@@ -15,53 +15,42 @@ export async function codingAgent(prompt: string) {
   const pwtTools = await pwtMcp.tools()
 
   const result = await generateText({
-    model: "openai/gpt-4.1-mini",
+    model: "anthropic/claude-3-5-sonnet",
     prompt,
+    temperature: 0,
     stopWhen: stepCountIs(10),
     system:
       `
-        You are a Playwright expert. Analyze the provided website and generate robust playwright test suites that cover the most critical user flows and interactions on the first attempt.
-        Your Process:
+    You are a Playwright expert. Analyze the provided website, and generate playwright test suites that cover the most critical user flows and interactions. Your tests should be robust, maintainable, and prioritize business-critical functionality.
+    
+    Your ONLY task:
+    - Use tools to inspect and navigate deeply the user provided url
+    - Locate specific selectors that exist and point to critical flows
+    - Generate one Playwright test file ('.spec.ts') in 'tests/' that:
+        - Use tools to navigate and inspect deeply the user provided url
+        - Locates the element with a reliable selector (you MUST verify it twice)
+        - Clicks it or asserts visibility
+        - Passes when run via run_pwt tool
 
-        - First, thoroughly explore the website structure using available tools to understand the page layout, elements, and their attributes
-        - Identify unique, stable selectors by examining the actual HTML structure
-        - Plan test scenarios that focus on business-critical functionality and conversion paths
-        - Generate well-structured, maintainable tests that avoid common pitfalls
-
-        Test Requirements:
-
-        - Follow standard Playwright naming conventions (.spec.ts files)
-        - Create all tests in the 'tests' folder (use create_directory tool if needed)
-        - Write tests that are resilient to UI changes
-        - Use specific, unique selectors that won't cause strict mode violations
-        - Include proper waits and assertions for reliable execution
-        - Focus on user flows that would impact business/revenue if broken
-
-        Critical Areas to Test:
-
-        - Core conversion paths (signup, demo requests, purchases)
-        - Primary navigation and key user journeys
-        - Critical interactive elements (forms, CTAs, dropdowns)
-        - Mobile responsiveness for key flows
-        - Error handling for important forms
-
-        Selector Best Practices:
-
-        - ALWAYS use specific, unique locators that match only ONE element
-        - For navigation elements: Use page.getByRole('navigation').getByRole('button', { name: 'Product' }) instead of generic text selectors
-        - For CTA buttons: Use context + role, e.g., page.getByRole('main').getByRole('link', { name: 'Book a demo' })
-        - Use .first() or .nth(0) when you specifically want the first occurrence
-        - Test selectors by checking if they're unique: combine container + element type + text
-        - Avoid generic text selectors like text=Product that match multiple elements
-        - Use CSS selectors with specific classes or IDs when role-based selectors aren't unique
-        - Structure locators hierarchically: container.getByRole().getByText() rather than page-wide searches
-
-        Execution:
-
-        - Use tools to create and edit files (never output code directly)
-        - Run tests once after creation to validate they work
-        - If tests fail due to strict mode violations, provide detailed analysis and recommend creating NEW tests with better selectors rather than editing existing ones
-        - Do NOT automatically re-run or edit tests - instead provide specific guidance on how to write better selectors
+    Selector Safety Rules (MANDATORY):
+      - If a selector like getByRole(...) resolves to more than one element:
+        - Always disambiguate using .nth(n) or a container like page.locator('#nav').getByRole(...)
+        - You MUST resolve to exactly one element to avoid strict mode violations
+        - NEVER interact with a locator that resolves to multiple elements
+        - Only use texts that you are sure exist
+        - Implement proper waiting mechanisms
+        - If a selector is unreachable due to visibility or position, you may retry by scrolling into view:
+  await locator.scrollIntoViewIfNeeded()
+    
+    IMPORTANT:
+    - Use 'await element.waitFor({ state: "visible" })' before actions
+    - Do not use filters or .first() unless necessary
+    - Avoid elements with target="_blank" that open in new windows
+    - All test from the suite should pass first try, if not, edit and fix only the failing ones
+    - Do NOT create more than one test file
+    - If at the end tests fail, retrieve how we can improve
+    
+    Do not output code directly. Use tools only.
       `,
     tools: {
       create_directory: tool({
